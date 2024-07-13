@@ -36,6 +36,7 @@ nav_msgs::Odometry current_pose_g;
 geometry_msgs::Pose correction_vector_g;
 geometry_msgs::Point local_offset_pose_g;
 geometry_msgs::PoseStamped waypoint_g;
+geometry_msgs::PoseStamped waypoint_v;
 
 float current_heading_g;
 float local_offset_g;
@@ -112,6 +113,12 @@ geometry_msgs::Point get_current_location()
 	return current_pos_local;
 
 }
+geometry_msgs::PoseStamped get_vertiport_location()
+{
+	geometry_msgs::PoseStamped waypoint_v;
+	return waypoint_v;
+
+}
 float get_current_heading()
 {
 	return current_heading_g;
@@ -177,6 +184,27 @@ void set_destination(float x, float y, float z, float psi)
 	waypoint_g.pose.position.z = z;
 
 	local_pos_pub.publish(waypoint_g);
+	
+}
+void set_vertiport(float x, float y, float z, float psi)
+{
+	set_heading(psi);
+	//transform map to local
+	float deg2rad = (M_PI/180);
+	float Xlocal = x*cos((correction_heading_g + local_offset_g - 90)*deg2rad) - y*sin((correction_heading_g + local_offset_g - 90)*deg2rad);
+	float Ylocal = x*sin((correction_heading_g + local_offset_g - 90)*deg2rad) + y*cos((correction_heading_g + local_offset_g - 90)*deg2rad);
+	float Zlocal = z;
+
+	x = Xlocal + correction_vector_g.position.x + local_offset_pose_g.x;
+	y = Ylocal + correction_vector_g.position.y + local_offset_pose_g.y;
+	z = Zlocal + correction_vector_g.position.z + local_offset_pose_g.z;
+	ROS_INFO("Vertiport set to x: %f y: %f z: %f origin frame", x, y, z);
+
+	waypoint_v.pose.position.x = x;
+	waypoint_v.pose.position.y = y;
+	waypoint_v.pose.position.z = z;
+
+	local_pos_pub.publish(waypoint_v);
 	
 }
 void set_destination_lla(float lat, float lon, float alt, float heading)
@@ -400,6 +428,35 @@ int check_waypoint_reached(float pos_tolerance=0.3, float heading_tolerance=0.01
 	//check for correct position 
 	float deltaX = abs(waypoint_g.pose.position.x - current_pose_g.pose.pose.position.x);
     float deltaY = abs(waypoint_g.pose.position.y - current_pose_g.pose.pose.position.y);
+    float deltaZ = 0; //abs(waypoint_g.pose.position.z - current_pose_g.pose.pose.position.z);
+    float dMag = sqrt( pow(deltaX, 2) + pow(deltaY, 2) + pow(deltaZ, 2) );
+    // ROS_INFO("dMag %f", dMag);
+    // ROS_INFO("current pose x %F y %f z %f", (current_pose_g.pose.pose.position.x), (current_pose_g.pose.pose.position.y), (current_pose_g.pose.pose.position.z));
+    // ROS_INFO("waypoint pose x %F y %f z %f", waypoint_g.pose.position.x, waypoint_g.pose.position.y,waypoint_g.pose.position.z);
+    //check orientation
+    float cosErr = cos(current_heading_g*(M_PI/180)) - cos(local_desired_heading_g*(M_PI/180));
+    float sinErr = sin(current_heading_g*(M_PI/180)) - sin(local_desired_heading_g*(M_PI/180));
+    
+    float headingErr = sqrt( pow(cosErr, 2) + pow(sinErr, 2) );
+
+    // ROS_INFO("current heading %f", current_heading_g);
+    // ROS_INFO("local_desired_heading_g %f", local_desired_heading_g);
+    // ROS_INFO("current heading error %f", headingErr);
+
+    if( dMag < pos_tolerance && headingErr < heading_tolerance)
+	{
+		return 1;
+	}else{
+		return 0;
+	}
+}
+int check_vertiport_reached(float pos_tolerance=0.3, float heading_tolerance=0.01)
+{
+	local_pos_pub.publish(waypoint_v);
+	
+	//check for correct position 
+	float deltaX = abs(waypoint_v.pose.position.x - current_pose_g.pose.pose.position.x);
+    float deltaY = abs(waypoint_v.pose.position.y - current_pose_g.pose.pose.position.y);
     float deltaZ = 0; //abs(waypoint_g.pose.position.z - current_pose_g.pose.pose.position.z);
     float dMag = sqrt( pow(deltaX, 2) + pow(deltaY, 2) + pow(deltaZ, 2) );
     // ROS_INFO("dMag %f", dMag);
