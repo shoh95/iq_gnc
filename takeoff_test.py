@@ -144,6 +144,9 @@ def go_move():
 
 
 
+
+
+
 if __name__ == '__main__':
     try:
         arm_and_takeoff(takeoff_height)
